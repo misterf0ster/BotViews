@@ -20,7 +20,7 @@ type DbaseCfg struct {
 	RedisPassword string
 }
 
-// Загрузка env из .env (корень проекта)
+// Загрузка env
 func LoadEnv() {
 	err := godotenv.Load()
 	if err != nil {
@@ -28,7 +28,7 @@ func LoadEnv() {
 	}
 }
 
-// Получить переменную из env или падать
+// Получить переменную из env
 func EnvLoad(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
