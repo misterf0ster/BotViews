@@ -4,13 +4,13 @@ task-controller/
 │   └── config.go                  # Загрузка конфига
 ├── internal/
 │   ├── db/
-│   │   ├── pg.go                 # Подключение и базовые методы
+│   │   ├── pg.go                 # Подключение к бд
 │   │   └── task.go               # Методы работы с задачами и статусами
 │   ├── logger/
-│   │   └── logger.go             # Логгер с zap (или zerolog)
+│   │   └── logger.go             # Логгер
 │   └── queue/
-│       ├── queue.go              # Подключение к Redis и базовые методы
+│       ├── queue.go              # Подключение к Redis 
 │       └── tasks.go              # Методы добавления/получения задач из Redis
 └── cmd/
     └── controller/
-        └── main.go               # Точка входа, инициализация, цикл
+        └── main.go               
