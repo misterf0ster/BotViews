@@ -1,8 +1,8 @@
 package config
 
 import (
+	"net/url"
 	"os"
-	"path/filepath"
 
 	"task-controller/internal/logger"
 
@@ -29,19 +29,25 @@ func EnvLoad(key string) string {
 
 func LoadEnv() {
 	// Загружаем .env из папки task-controller
-	envPath := filepath.Join("task-controller", ".env")
+	envPath := ".env"
 	if err := godotenv.Load(envPath); err != nil {
 		logger.Warn("Warning: error loading .env file from %s: %v", envPath, err)
 	}
 }
 
 func Config() *DbaseCfg {
+	user := url.QueryEscape(EnvLoad("DB_USER"))
+	pass := url.QueryEscape(EnvLoad("DB_PASSWORD"))
+	host := url.QueryEscape(EnvLoad("DB_HOST"))
+	port := url.QueryEscape(EnvLoad("DB_PORT"))
+	dbname := url.QueryEscape(EnvLoad("DB_NAME"))
+
 	return &DbaseCfg{
-		DBUser:    EnvLoad("DB_USER"),
-		DBPass:    EnvLoad("DB_PASSWORD"),
-		DBHost:    EnvLoad("DB_HOST"),
-		DBPort:    EnvLoad("DB_PORT"),
-		DBName:    EnvLoad("DB_NAME"),
+		DBUser:    user,
+		DBPass:    pass,
+		DBHost:    host,
+		DBPort:    port,
+		DBName:    dbname,
 		RedisAddr: EnvLoad("REDIS_ADDR"),
 		RedisPass: EnvLoad("REDIS_PASSWORD"),
 	}
