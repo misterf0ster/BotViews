@@ -111,16 +111,29 @@ func (c *Controller) processSingleOrder(ctx context.Context, orderID int) error 
 	if err != nil {
 		return fmt.Errorf("failed to count tasks for order %d: %w", orderID, err)
 	}
+
+	remainingCycles := TargetCyclesPerOrder - currentCycles
+	if remainingCycles <= 0 {
+		return nil
+	}
 	if queuedTasks > 0 {
 		logger.Info(fmt.Sprintf("Order %d already has %d tasks in queue, skipping", orderID, queuedTasks))
 		return nil
 	}
 
 	botsCount := rand.Intn(MaxBotsPerOrder-MinBotsPerOrder+1) + MinBotsPerOrder
-	cyclesPerBot := 90
+	if botsCount > remainingCycles {
+		botsCount = remainingCycles
+	}
+
+	// Получаем ссылку заказа из базы
+	link, err := c.DB.GetOrderLink(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("failed to get order link: %w", err)
+	}
 
 	for i := 0; i < botsCount; i++ {
-		taskPayload := createTaskPayload(orderID, cyclesPerBot)
+		taskPayload := createTaskPayload(orderID, 1, link) // cycles теперь всегда 1
 		if err := c.Queue.AddTaskForOrder(ctx, orderID, taskPayload); err != nil {
 			logger.Error("Failed to add task to queue: %v", err)
 		} else {
@@ -136,8 +149,8 @@ func (c *Controller) processSingleOrder(ctx context.Context, orderID int) error 
 	return nil
 }
 
-func createTaskPayload(orderID int, cycles int) string {
-	return fmt.Sprintf("order:%d:cycles:%d:time:%s", orderID, cycles, time.Now().Format(time.RFC3339))
+func createTaskPayload(orderID int, cycles int, link string) string {
+	return fmt.Sprintf("order:%d:cycles:%d:link:%s:time:%s", orderID, cycles, link, time.Now().Format(time.RFC3339))
 }
 
 // Для отчёта от бота о завершении циклов

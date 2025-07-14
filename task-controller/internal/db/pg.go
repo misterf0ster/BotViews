@@ -81,6 +81,18 @@ func (db *DB) GetOrderCycles(ctx context.Context, orderID int) (int, error) {
 	return count, nil
 }
 
+// Получить ссылку для заказа
+func (db *DB) GetOrderLink(ctx context.Context, orderID int) (string, error) {
+	var link string
+	err := db.Conn.QueryRow(ctx, `
+		SELECT video_url FROM bot.orders WHERE order_id = $1
+	`, orderID).Scan(&link)
+	if err != nil {
+		return "", fmt.Errorf("failed to get link for order %d: %w", orderID, err)
+	}
+	return link, nil
+}
+
 // Увеличить количество циклов для заказа
 func (db *DB) IncrementOrderCycles(ctx context.Context, orderID int, delta int) error {
 	// Если записи в order_stats нет, создадим
