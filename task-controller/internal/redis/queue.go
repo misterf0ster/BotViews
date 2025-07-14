@@ -1,8 +1,9 @@
-package redis
+package queue
 
 import (
 	"context"
-	"log"
+
+	"task-controller/internal/logger"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -11,22 +12,22 @@ type Queue struct {
 	Client *redis.Client
 }
 
-func Connect(addr, password string) (*Queue, error) {
-	rdb := redis.NewClient(&redis.Options{
+func New(addr, pass string) *Queue {
+	client := redis.NewClient(&redis.Options{
 		Addr:     addr,
-		Password: password,
+		Password: pass,
 		DB:       0,
 	})
-
-	ctx := context.Background()
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		return nil, err
-	}
-
-	log.Println("Successfully connected to Redis")
-	return &Queue{Client: rdb}, nil
+	logger.Info("Connected to Redis")
+	return &Queue{Client: client}
 }
 
-func (q *Queue) Close() error {
-	return q.Client.Close()
+// Добавить задачу
+func (q *Queue) AddTask(ctx context.Context, task string) error {
+	return q.Client.RPush(ctx, "tasks", task).Err()
+}
+
+// Получить задачу
+func (q *Queue) GetTask(ctx context.Context) (string, error) {
+	return q.Client.LPop(ctx, "tasks").Result()
 }

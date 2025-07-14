@@ -1,22 +1,13 @@
 package logger
 
 import (
-	"go.uber.org/zap"
+	"log"
 )
 
-var Log *zap.Logger
-
-func Init() error {
-	var err error
-	Log, err = zap.NewProduction()
-	if err != nil {
-		return err
-	}
-	return nil
+func Info(format string, v ...interface{}) {
+	log.Printf("[INFO] "+format, v...)
 }
 
-func Sync() {
-	if Log != nil {
-		_ = Log.Sync()
-	}
+func Error(format string, v ...interface{}) {
+	log.Printf("[ERROR] "+format, v...)
 }

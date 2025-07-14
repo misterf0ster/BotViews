@@ -2,53 +2,36 @@ package config
 
 import (
 	"fmt"
-	"os"
-
 	"log"
+	"os"
 
 	"github.com/joho/godotenv"
 )
 
-type DbaseCfg struct {
-	DBUser string
-	DBPass string
-	DBHost string
-	DBPort string
-	DBName string
-
-	RedisAddr     string
-	RedisPassword string
+type Config struct {
+	DBUrl     string
+	RedisAddr string
+	RedisPass string
 }
 
-// Загрузка env
-func LoadEnv() {
+func Load() *Config {
 	err := godotenv.Load()
 	if err != nil {
-		log.Printf("Warning: .env file not found or could not be loaded: %v", err)
+		log.Fatalf("Error loading .env: %v", err)
 	}
-}
 
-// Получить переменную из env
-func EnvLoad(key string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		log.Fatalf("env variable %s is not set", key)
+	dbUrl := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"),
+	)
+
+	return &Config{
+		DBUrl:     dbUrl,
+		RedisAddr: os.Getenv("REDIS_HOST"),
+		RedisPass: os.Getenv("REDIS_PASSWORD"),
 	}
-	return value
-}
-
-func Config() *DbaseCfg {
-	return &DbaseCfg{
-		DBUser:        EnvLoad("DB_USER"),
-		DBPass:        EnvLoad("DB_PASSWORD"),
-		DBHost:        EnvLoad("DB_HOST"),
-		DBPort:        EnvLoad("DB_PORT"),
-		DBName:        EnvLoad("DB_NAME"),
-		RedisAddr:     EnvLoad("REDIS_ADDR"),
-		RedisPassword: EnvLoad("REDIS_PASSWORD"),
-	}
-}
-
-func (c *DbaseCfg) PostgresURL() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", c.DBUser, c.DBPass, c.DBHost, c.DBPort, c.DBName)
 }
