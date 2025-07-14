@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
 	"task-controller/config"
 	"task-controller/internal/controller"
 	"task-controller/internal/db"
@@ -14,42 +13,31 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	// Загружаем .env из папки task-controller
+	config.LoadEnv()
+
+	cfg := config.Config()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Graceful shutdown
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		logger.Info("Received shutdown signal")
-		cancel()
-	}()
-
-	cfg, err := config.Load()
+	// Подключаемся к базе
+	dbConn, err := db.New(ctx, cfg.DBaseURL())
 	if err != nil {
-		logger.Error("Config load error: %v", err)
-		os.Exit(1)
-	}
-	if err := cfg.Validate(); err != nil {
-		logger.Error("Config validation error: %v", err)
-		os.Exit(1)
-	}
-
-	dbConn, err := db.New(ctx, cfg.DBUrl)
-	if err != nil {
-		logger.Error("DB connection error: %v", err)
-		os.Exit(1)
+		logger.Fatal("Failed to connect to DB: %v", err)
 	}
 	defer dbConn.Close(ctx)
 
+	// Подключаемся к Redis
 	q, err := queue.New(cfg.RedisAddr, cfg.RedisPass)
 	if err != nil {
-		logger.Error("Redis connection error: %v", err)
-		os.Exit(1)
+		logger.Fatal("Failed to connect to Redis: %v", err)
 	}
-	defer q.Close()
 
 	ctrl := controller.New(dbConn, q)
-	ctrl.Run(ctx)
+
+	go ctrl.Run(ctx)
+
+	<-ctx.Done()
+	logger.Info("Shutting down gracefully")
 }

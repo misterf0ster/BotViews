@@ -4,12 +4,18 @@ import (
 	"log"
 )
 
-// Info логирует информационные сообщения.
-func Info(format string, v ...interface{}) {
-	log.Printf("[INFO] "+format, v...)
+func Info(msg string, args ...interface{}) {
+	log.Printf("[INFO] "+msg, args...)
 }
 
-// Error логирует ошибки.
-func Error(format string, v ...interface{}) {
-	log.Printf("[ERROR] "+format, v...)
+func Error(msg string, args ...interface{}) {
+	log.Printf("[ERROR] "+msg, args...)
+}
+
+func Warn(msg string, args ...interface{}) {
+	log.Printf("[WARN] "+msg, args...)
+}
+
+func Fatal(msg string, args ...interface{}) {
+	log.Fatalf("[FATAL] "+msg, args...)
 }

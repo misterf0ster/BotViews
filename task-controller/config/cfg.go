@@ -1,48 +1,52 @@
 package config
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
+
+	"task-controller/internal/logger"
 
 	"github.com/joho/godotenv"
 )
 
-// Config содержит все параметры подключения.
-type Config struct {
-	DBUrl     string
+type DbaseCfg struct {
+	DBUser    string
+	DBPass    string
+	DBHost    string
+	DBPort    string
+	DBName    string
 	RedisAddr string
 	RedisPass string
 }
 
-// Load загружает конфиг из переменных окружения или файла .env.
-func Load() (*Config, error) {
-	_ = godotenv.Load() // Не fatal — можно запускать и без .env
-
-	dbUser := os.Getenv("DB_USER")
-	dbPass := os.Getenv("DB_PASSWORD")
-	dbHost := os.Getenv("DB_HOST")
-	dbPort := os.Getenv("DB_PORT")
-	dbName := os.Getenv("DB_NAME")
-
-	dbUrl := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		dbUser, dbPass, dbHost, dbPort, dbName,
-	)
-
-	return &Config{
-		DBUrl:     dbUrl,
-		RedisAddr: os.Getenv("REDIS_HOST"),
-		RedisPass: os.Getenv("REDIS_PASSWORD"),
-	}, nil
+func EnvLoad(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		logger.Fatal("env variable %s is not set", key)
+	}
+	return value
 }
 
-// Validate проверяет обязательные поля конфига.
-func (c *Config) Validate() error {
-	if c.DBUrl == "" {
-		return fmt.Errorf("DBUrl is empty")
+func LoadEnv() {
+	// Загружаем .env из папки task-controller
+	envPath := filepath.Join("task-controller", ".env")
+	if err := godotenv.Load(envPath); err != nil {
+		logger.Warn("Warning: error loading .env file from %s: %v", envPath, err)
 	}
-	if c.RedisAddr == "" {
-		return fmt.Errorf("RedisAddr is empty")
+}
+
+func Config() *DbaseCfg {
+	return &DbaseCfg{
+		DBUser:    EnvLoad("DB_USER"),
+		DBPass:    EnvLoad("DB_PASSWORD"),
+		DBHost:    EnvLoad("DB_HOST"),
+		DBPort:    EnvLoad("DB_PORT"),
+		DBName:    EnvLoad("DB_NAME"),
+		RedisAddr: EnvLoad("REDIS_ADDR"),
+		RedisPass: EnvLoad("REDIS_PASSWORD"),
 	}
-	return nil
+}
+
+func (c *DbaseCfg) DBaseURL() string {
+	return "postgres://" + c.DBUser + ":" + c.DBPass + "@" + c.DBHost + ":" + c.DBPort + "/" + c.DBName + "?sslmode=disable"
 }

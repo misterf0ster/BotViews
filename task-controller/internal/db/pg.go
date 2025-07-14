@@ -8,12 +8,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// DB содержит прямое соединение с Postgres (без пула).
 type DB struct {
 	Conn *pgx.Conn
 }
 
-// New открывает соединение с Postgres.
 func New(ctx context.Context, url string) (*DB, error) {
 	conn, err := pgx.Connect(ctx, url)
 	if err != nil {
@@ -27,7 +25,6 @@ func New(ctx context.Context, url string) (*DB, error) {
 	return &DB{Conn: conn}, nil
 }
 
-// Close закрывает соединение.
 func (db *DB) Close(ctx context.Context) {
 	if db.Conn != nil {
 		db.Conn.Close(ctx)
@@ -35,42 +32,10 @@ func (db *DB) Close(ctx context.Context) {
 	}
 }
 
-// GetOrderCycles возвращает число выполненных циклов заказа.
-func (db *DB) GetOrderCycles(ctx context.Context, orderID int) (int, error) {
-	var count int
-	err := db.Conn.QueryRow(ctx, `
-		SELECT completed_cycles FROM bot.order_stats WHERE order_id=$1
-	`, orderID).Scan(&count)
-	return count, err
-}
-
-// IncrementOrderCycles увеличивает число циклов заказа.
-func (db *DB) IncrementOrderCycles(ctx context.Context, orderID int, delta int) error {
-	_, err := db.Conn.Exec(ctx, `
-		UPDATE bot.order_stats
-		SET completed_cycles = completed_cycles + $1, updated_at=NOW()
-		WHERE order_id=$2
-	`, delta, orderID)
-	return err
-}
-
-// SetOrderProcessing переводит заказ в статус 'processing'.
-func (db *DB) SetOrderProcessing(ctx context.Context, orderID int) error {
-	_, err := db.Conn.Exec(ctx, `
-		UPDATE bot.orders SET status = 'processing' WHERE order_id = $1
-	`, orderID)
-	if err != nil {
-		return fmt.Errorf("failed to update order %d status: %w", orderID, err)
-	}
-	return nil
-}
-
-// GetNewOrders возвращает id заказов в статусе 'new'.
+// Получить новые заказы со статусом "new"
 func (db *DB) GetNewOrders(ctx context.Context) ([]int, error) {
 	rows, err := db.Conn.Query(ctx, `
-		SELECT order_id 
-		FROM bot.orders 
-		WHERE status = 'new'
+		SELECT order_id FROM bot.orders WHERE status = 'new'
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get new orders: %w", err)
@@ -86,9 +51,45 @@ func (db *DB) GetNewOrders(ctx context.Context) ([]int, error) {
 		}
 		orderIDs = append(orderIDs, id)
 	}
-	if rows.Err() != nil {
-		return orderIDs, rows.Err()
-	}
+	return orderIDs, rows.Err()
+}
 
-	return orderIDs, nil
+// Установить статус заказа
+func (db *DB) SetOrderStatus(ctx context.Context, orderID int, status string) error {
+	_, err := db.Conn.Exec(ctx, `
+		UPDATE bot.orders SET status = $1 WHERE order_id = $2
+	`, status, orderID)
+	if err != nil {
+		return fmt.Errorf("failed to update order %d status: %w", orderID, err)
+	}
+	return nil
+}
+
+// Получить количество выполненных циклов для заказа
+func (db *DB) GetOrderCycles(ctx context.Context, orderID int) (int, error) {
+	var count int
+	err := db.Conn.QueryRow(ctx, `
+		SELECT completed_cycles FROM bot.order_stats WHERE order_id = $1
+	`, orderID).Scan(&count)
+	if err != nil {
+		// Если записи нет, вернем 0
+		if err == pgx.ErrNoRows {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("failed to get completed_cycles for order %d: %w", orderID, err)
+	}
+	return count, nil
+}
+
+// Увеличить количество циклов для заказа
+func (db *DB) IncrementOrderCycles(ctx context.Context, orderID int, delta int) error {
+	// Если записи в order_stats нет, создадим
+	_, err := db.Conn.Exec(ctx, `
+		INSERT INTO bot.order_stats (order_id, completed_cycles, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (order_id) DO UPDATE
+		SET completed_cycles = bot.order_stats.completed_cycles + $2,
+			updated_at = NOW()
+	`, orderID, delta)
+	return err
 }

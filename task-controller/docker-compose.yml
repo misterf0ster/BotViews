@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  task-controller:
+    build: .
+    container_name: task-controller
+    env_file:
+      - .env
+    network_mode: "host"
+    restart: unless-stopped
