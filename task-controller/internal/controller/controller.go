@@ -9,11 +9,13 @@ import (
 	"time"
 )
 
+// Controller отвечает за обработку задач и заказов.
 type Controller struct {
 	DB    *db.DB
 	Queue *queue.Queue
 }
 
+// New создает новый контроллер.
 func New(database *db.DB, q *queue.Queue) *Controller {
 	return &Controller{
 		DB:    database,
@@ -21,7 +23,23 @@ func New(database *db.DB, q *queue.Queue) *Controller {
 	}
 }
 
-// Метод для постановки новых заказов в очередь и смены их статуса на processing
+// Run запускает основной цикл обработки заказов (пример — раз в 5 секунд).
+func (c *Controller) Run(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("Controller stopped")
+			return
+		case <-ticker.C:
+			c.EnqueueNewOrders(ctx)
+		}
+	}
+}
+
+// EnqueueNewOrders ищет новые заказы и ставит их в очередь.
 func (c *Controller) EnqueueNewOrders(ctx context.Context) {
 	orders, err := c.DB.GetNewOrders(ctx)
 	if err != nil {
@@ -38,8 +56,7 @@ func (c *Controller) EnqueueNewOrders(ctx context.Context) {
 		task := createTaskPayload(orderID)
 
 		// Добавляем в очередь
-		err := c.Queue.AddTask(ctx, task)
-		if err != nil {
+		if err := c.Queue.AddTask(ctx, task); err != nil {
 			logger.Error("Failed to add task to queue: %v", err)
 			continue
 		}
@@ -54,6 +71,7 @@ func (c *Controller) EnqueueNewOrders(ctx context.Context) {
 	}
 }
 
+// createTaskPayload формирует строку задачи для очереди.
 func createTaskPayload(orderID int) string {
 	return fmt.Sprintf("order:%d:time:%s", orderID, time.Now().Format(time.RFC3339))
 }

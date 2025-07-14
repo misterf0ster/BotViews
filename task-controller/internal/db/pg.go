@@ -3,25 +3,31 @@ package db
 import (
 	"context"
 	"fmt"
-
 	"task-controller/internal/logger"
 
 	"github.com/jackc/pgx/v5"
 )
 
+// DB содержит прямое соединение с Postgres (без пула).
 type DB struct {
 	Conn *pgx.Conn
 }
 
+// New открывает соединение с Postgres.
 func New(ctx context.Context, url string) (*DB, error) {
 	conn, err := pgx.Connect(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("db connect error: %w", err)
+		return nil, fmt.Errorf("database connection error: %w", err)
+	}
+	if err := conn.Ping(ctx); err != nil {
+		conn.Close(ctx)
+		return nil, fmt.Errorf("error checking database connection: %w", err)
 	}
 	logger.Info("Connected to database")
 	return &DB{Conn: conn}, nil
 }
 
+// Close закрывает соединение.
 func (db *DB) Close(ctx context.Context) {
 	if db.Conn != nil {
 		db.Conn.Close(ctx)
@@ -29,7 +35,7 @@ func (db *DB) Close(ctx context.Context) {
 	}
 }
 
-// Получение количество выполненных циклов
+// GetOrderCycles возвращает число выполненных циклов заказа.
 func (db *DB) GetOrderCycles(ctx context.Context, orderID int) (int, error) {
 	var count int
 	err := db.Conn.QueryRow(ctx, `
@@ -38,7 +44,7 @@ func (db *DB) GetOrderCycles(ctx context.Context, orderID int) (int, error) {
 	return count, err
 }
 
-// Увеличение количество циклов
+// IncrementOrderCycles увеличивает число циклов заказа.
 func (db *DB) IncrementOrderCycles(ctx context.Context, orderID int, delta int) error {
 	_, err := db.Conn.Exec(ctx, `
 		UPDATE bot.order_stats
@@ -48,7 +54,7 @@ func (db *DB) IncrementOrderCycles(ctx context.Context, orderID int, delta int) 
 	return err
 }
 
-// Установка статуса заказа в 'processing'
+// SetOrderProcessing переводит заказ в статус 'processing'.
 func (db *DB) SetOrderProcessing(ctx context.Context, orderID int) error {
 	_, err := db.Conn.Exec(ctx, `
 		UPDATE bot.orders SET status = 'processing' WHERE order_id = $1
@@ -59,7 +65,7 @@ func (db *DB) SetOrderProcessing(ctx context.Context, orderID int) error {
 	return nil
 }
 
-// Получение заказов со статусом 'new'
+// GetNewOrders возвращает id заказов в статусе 'new'.
 func (db *DB) GetNewOrders(ctx context.Context) ([]int, error) {
 	rows, err := db.Conn.Query(ctx, `
 		SELECT order_id 
@@ -79,6 +85,9 @@ func (db *DB) GetNewOrders(ctx context.Context) ([]int, error) {
 			continue
 		}
 		orderIDs = append(orderIDs, id)
+	}
+	if rows.Err() != nil {
+		return orderIDs, rows.Err()
 	}
 
 	return orderIDs, nil
