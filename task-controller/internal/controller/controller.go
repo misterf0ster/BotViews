@@ -13,7 +13,7 @@ import (
 const (
 	TargetCyclesPerOrder = 12500
 	MinBotsPerOrder      = 5
-	MaxBotsPerOrder      = 20
+	MaxBotsPerOrder      = 10
 )
 
 type Controller struct {
@@ -29,7 +29,7 @@ func New(database *db.DB, q *queue.Queue) *Controller {
 }
 
 func (c *Controller) Run(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(45 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -43,7 +43,6 @@ func (c *Controller) Run(ctx context.Context) {
 	}
 }
 
-// Основная логика обработки заказов
 func (c *Controller) ProcessOrders(ctx context.Context) {
 	orders, err := c.DB.GetNewOrders(ctx)
 	if err != nil {
@@ -51,7 +50,6 @@ func (c *Controller) ProcessOrders(ctx context.Context) {
 		return
 	}
 
-	// Добавим уже обрабатываемые заказы (status='processing'), чтобы динамически распределять задачи
 	processingOrders, err := c.getProcessingOrders(ctx)
 	if err != nil {
 		logger.Error("Failed to get processing orders: %v", err)
@@ -72,7 +70,6 @@ func (c *Controller) ProcessOrders(ctx context.Context) {
 	}
 }
 
-// Получить список заказов в статусе 'processing'
 func (c *Controller) getProcessingOrders(ctx context.Context) ([]int, error) {
 	rows, err := c.DB.Conn.Query(ctx, `
 		SELECT order_id FROM bot.orders WHERE status = 'processing'
@@ -109,26 +106,29 @@ func (c *Controller) processSingleOrder(ctx context.Context, orderID int) error 
 		return nil
 	}
 
-	// Рандомное количество ботов для работы с заказом (5-20)
-	botsCount := rand.Intn(MaxBotsPerOrder-MinBotsPerOrder+1) + MinBotsPerOrder
+	// Проверяем, есть ли уже задачи для этого заказа
+	queuedTasks, err := c.Queue.CountTasksForOrder(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("failed to count tasks for order %d: %w", orderID, err)
+	}
+	if queuedTasks > 0 {
+		logger.Info(fmt.Sprintf("Order %d already has %d tasks in queue, skipping", orderID, queuedTasks))
+		return nil
+	}
 
-	// Количество циклов, которое каждый бот должен выполнить за час
-	// Так как 1 цикл ~40 сек, за час бот делает примерно 90 циклов
-	// Распределяем: общее количество циклов на заказ в час делим на кол-во ботов
-	// Для простоты положим каждый бот делает 90 циклов в час
+	botsCount := rand.Intn(MaxBotsPerOrder-MinBotsPerOrder+1) + MinBotsPerOrder
 	cyclesPerBot := 90
 
-	// Создаём задачи в очереди для каждого бота
 	for i := 0; i < botsCount; i++ {
 		taskPayload := createTaskPayload(orderID, cyclesPerBot)
-		if err := c.Queue.AddTask(ctx, taskPayload); err != nil {
+		if err := c.Queue.AddTaskForOrder(ctx, orderID, taskPayload); err != nil {
 			logger.Error("Failed to add task to queue: %v", err)
 		} else {
 			logger.Info(fmt.Sprintf("Added task for order %d: %s", orderID, taskPayload))
 		}
 	}
 
-	// Обновим статус, если заказ был новый (для новых)
+	// Обновим статус заказа на processing, если был новый
 	if err := c.DB.SetOrderStatus(ctx, orderID, "processing"); err != nil {
 		logger.Error("Failed to update order status to processing: %v", err)
 	}
@@ -140,8 +140,7 @@ func createTaskPayload(orderID int, cycles int) string {
 	return fmt.Sprintf("order:%d:cycles:%d:time:%s", orderID, cycles, time.Now().Format(time.RFC3339))
 }
 
-// Функция для обработки отчёта от бота (пример)
-// Бот после выполнения цикла отправляет сюда результат для инкремента completed_cycles
+// Для отчёта от бота о завершении циклов
 func (c *Controller) ReportCycleDone(ctx context.Context, orderID int, cyclesDone int) error {
 	err := c.DB.IncrementOrderCycles(ctx, orderID, cyclesDone)
 	if err != nil {

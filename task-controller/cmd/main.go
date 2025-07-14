@@ -13,7 +13,6 @@ import (
 )
 
 func main() {
-	// Загружаем .env из папки task-controller
 	config.LoadEnv()
 
 	cfg := config.Config()
@@ -21,7 +20,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Подключаемся к базе
+	// Подключение к базе
 	dbConn, err := db.New(ctx, cfg.DBaseURL())
 	if err != nil {
 		logger.Fatal("Failed to connect to DB: %v", err)
