@@ -46,8 +46,8 @@ func botWorker(q *queue.Queue, queues, proxies []string, controlURL string, work
 		t := task.Parse(payload)
 		log.Printf("[%s] Task: order=%d link=%s cycles=%d proxy=%s", botID, t.OrderID, t.Link, t.Cycles, proxyAddr)
 
-		// Выполнить задачу (эмулировать просмотр на rutube)
-		err = browser.WatchRutubeHuman(t.Link, 40*time.Second, userAgent, proxyAddr)
+		// Выполнить задачу
+		err = browser.WatchRutubeHuman(t.Link, 60*time.Second, userAgent, proxyAddr)
 		if err != nil {
 			log.Printf("[%s] watchRutube error: %v", botID, err)
 			continue
