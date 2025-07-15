@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bot-rutube/internal/task"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"workers/internal/browser"
 	"workers/internal/queue"
 	"workers/internal/report"
+	"workers/internal/task"
 )
 
 func main() {
