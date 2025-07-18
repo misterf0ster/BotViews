@@ -1,4 +1,4 @@
-bot-rutube/
+workers/
 ├── cmd/
 │   └── bot/                # main.go (точка входа)
 ├── internal/
